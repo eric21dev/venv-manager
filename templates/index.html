@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Entornos Virtuales</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 900px;
+            margin: 50px auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .filters {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+        }
+        .filters input {
+            padding: 8px;
+            font-size: 14px;
+            flex: 1;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .btn {
+            padding: 5px 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            margin-right: 5px;
+        }
+        .view-btn { background-color: #4CAF50; color: white; }
+        .delete-btn { background-color: #ff4d4d; color: white; }
+        .export-btn { background-color: #1E90FF; color: white; }
+        .clone-btn { background-color: #FFA500; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gestión de Entornos Virtuales (Pyenv)</h1>
+
+        <!-- Filtros -->
+        <div class="filters">
+            <input type="text" id="filterName" placeholder="Filtrar por nombre...">
+            <input type="text" id="filterVersion" placeholder="Filtrar por versión de Python...">
+        </div>
+
+        <!-- Tabla de entornos virtuales -->
+        <table id="venvsTable">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Versión de Python</th>
+                    <th>Tamaño</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for venv in venvs %}
+                <tr>
+                    <td>{{ venv.name }}</td>
+                    <td>{{ venv.version }}</td>
+                    <td>{{ venv.size }}</td>
+                    <td>
+                        <button class="btn view-btn" data-name="{{ venv.name }}">Ver Paquetes</button>
+                        <button class="btn clone-btn" data-name="{{ venv.name }}">Clonar</button>
+                        <button class="btn export-btn" data-name="{{ venv.name }}">Exportar</button>
+                        <button class="btn delete-btn" data-name="{{ venv.name }}">Eliminar</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Gráficos -->
+        <div id="charts">
+            <canvas id="sizeChart"></canvas>
+            <canvas id="versionChart"></canvas>
+        </div>
+
+        <!-- Modal para mostrar paquetes -->
+        <div id="packagesModal" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); border-radius: 8px;">
+            <h2>Paquetes en <span id="modalVenvName"></span></h2>
+            <ul id="packagesList"></ul>
+            <button onclick="closeModal()">Cerrar</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Filtros
+        document.querySelector("#filterName").addEventListener("input", filterTable);
+        document.querySelector("#filterVersion").addEventListener("input", filterTable);
+
+        function filterTable() {
+            const nameFilter = document.querySelector("#filterName").value.toLowerCase();
+            const versionFilter = document.querySelector("#filterVersion").value.toLowerCase();
+            const rows = document.querySelectorAll("#venvsTable tbody tr");
+            rows.forEach(row => {
+                const name = row.cells[0].textContent.toLowerCase();
+                const version = row.cells[1].textContent.toLowerCase();
+                row.style.display = name.includes(nameFilter) && version.includes(versionFilter) ? "" : "none";
+            });
+        }
+
+        // Botones de acción
+        document.querySelectorAll(".view-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const venvName = btn.dataset.name;
+                fetch("/api/packages", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `venv_name=${venvName}`
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "success") {
+                        document.getElementById("modalVenvName").textContent = venvName;
+                        const packagesList = document.getElementById("packagesList");
+                        packagesList.innerHTML = "";
+                        const packages = JSON.parse(data.packages);
+                        packages.forEach(pkg => {
+                            const li = document.createElement("li");
+                            li.textContent = `${pkg.name} (${pkg.version})`;
+                            packagesList.appendChild(li);
+                        });
+                        document.getElementById("packagesModal").style.display = "block";
+                    } else {
+                        alert(`Error: ${data.message}`);
+                    }
+                });
+            });
+        });
+
+        function closeModal() {
+            document.getElementById("packagesModal").style.display = "none";
+        }
+
+        // Gráficos
+        const sizeData = {{ venvs|tojson }};
+        const sizeChart = new Chart(document.getElementById("sizeChart").getContext("2d"), {
+            type: "bar",
+            data: {
+                labels: sizeData.map(v => v.name),
+                datasets: [{
+                    label: "Tamaño (MB)",
+                    data: sizeData.map(v => parseFloat(v.size)),
+                }]
+            }
+        });
+    </script>
+</body>
+</html>
