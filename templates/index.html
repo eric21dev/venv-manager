@@ -61,6 +61,30 @@
         .delete-btn { background-color: #ff4d4d; color: white; }
         .export-btn { background-color: #1E90FF; color: white; }
         .clone-btn { background-color: #FFA500; color: white; }
+        #packagesModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            width: 60%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+        #packagesModal h2 {
+            margin-top: 0;
+        }
+        #packagesModal ul {
+            list-style: none;
+            padding: 0;
+        }
+        #packagesModal ul li {
+            padding: 5px 0;
+        }
     </style>
 </head>
 <body>
@@ -100,21 +124,14 @@
             </tbody>
         </table>
 
-        <!-- Gráficos -->
-        <div id="charts">
-            <canvas id="sizeChart"></canvas>
-            <canvas id="versionChart"></canvas>
-        </div>
-
         <!-- Modal para mostrar paquetes -->
-        <div id="packagesModal" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); border-radius: 8px;">
+        <div id="packagesModal">
             <h2>Paquetes en <span id="modalVenvName"></span></h2>
             <ul id="packagesList"></ul>
             <button onclick="closeModal()">Cerrar</button>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         // Filtros
         document.querySelector("#filterName").addEventListener("input", filterTable);
@@ -160,22 +177,27 @@
             });
         });
 
+        document.querySelectorAll(".delete-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const venvName = btn.dataset.name;
+                if (confirm(`¿Seguro que deseas eliminar el entorno "${venvName}"?`)) {
+                    fetch("/delete_venv", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: `venv_name=${venvName}`
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        alert(data.message);
+                        if (data.status === "success") location.reload();
+                    });
+                }
+            });
+        });
+
         function closeModal() {
             document.getElementById("packagesModal").style.display = "none";
         }
-
-        // Gráficos
-        const sizeData = {{ venvs|tojson }};
-        const sizeChart = new Chart(document.getElementById("sizeChart").getContext("2d"), {
-            type: "bar",
-            data: {
-                labels: sizeData.map(v => v.name),
-                datasets: [{
-                    label: "Tamaño (MB)",
-                    data: sizeData.map(v => parseFloat(v.size)),
-                }]
-            }
-        });
     </script>
 </body>
 </html>
